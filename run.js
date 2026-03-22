@@ -27,6 +27,7 @@ async function main() {
 
   for (let i = 0; i < businesses.length; i += 1) {
     const b = businesses[i];
+
     let scrape = {
       websiteUrl: null,
       scraped: false,
@@ -43,6 +44,13 @@ async function main() {
       scrape.error = e.message || "scrape_exception";
     }
 
+    // ✅ Deterministic missing features (IMPORTANT)
+    const missing_features = [
+      !scrape.hasForm && "contact form",
+      !scrape.hasChat && "live chat",
+      !scrape.hasBooking && "online booking",
+    ].filter(Boolean);
+
     const llmCtx = {
       name: b.name,
       review_count: b.review_count,
@@ -57,10 +65,16 @@ async function main() {
     };
 
     let llm = { missing_features: [], pitch: "" };
+
     try {
       llm = await analyzeWithLLM(llmCtx);
     } catch {
       llm = { ...LLM_FALLBACK };
+    }
+
+    // ✅ Override Gemini if empty/useless
+    if (!llm.missing_features || llm.missing_features.length === 0) {
+      llm.missing_features = missing_features;
     }
 
     const scores = scoreBusiness({
@@ -72,6 +86,7 @@ async function main() {
       hasBooking: scrape.hasBooking,
       hasPhone: scrape.hasPhone,
       missing_features: llm.missing_features,
+      scrapeError: scrape.error, // ✅ pass for penalty
     });
 
     pipeline.push({
@@ -122,6 +137,8 @@ async function main() {
 }
 
 main().catch((err) => {
-  process.stderr.write(`${JSON.stringify({ error: err.message || String(err) }, null, 2)}\n`);
+  process.stderr.write(
+    `${JSON.stringify({ error: err.message || String(err) }, null, 2)}\n`
+  );
   process.exitCode = 1;
 });
