@@ -44,7 +44,7 @@ async function main() {
       scrape.error = e.message || "scrape_exception";
     }
 
-    // ✅ Deterministic missing features (IMPORTANT)
+    // ✅ deterministic missing features
     const missing_features = [
       !scrape.hasForm && "contact form",
       !scrape.hasChat && "live chat",
@@ -72,7 +72,7 @@ async function main() {
       llm = { ...LLM_FALLBACK };
     }
 
-    // ✅ Override Gemini if empty/useless
+    // ✅ override bad Gemini output
     if (!llm.missing_features || llm.missing_features.length === 0) {
       llm.missing_features = missing_features;
     }
@@ -86,7 +86,7 @@ async function main() {
       hasBooking: scrape.hasBooking,
       hasPhone: scrape.hasPhone,
       missing_features: llm.missing_features,
-      scrapeError: scrape.error, // ✅ pass for penalty
+      scrapeError: scrape.error, // ✅ IMPORTANT FIX
     });
 
     pipeline.push({
