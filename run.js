@@ -4,6 +4,7 @@ require("dotenv").config();
 const { getMockBusinesses } = require("./mockBusinesses");
 const  scrapeWebsite = require("./scrapeWebsite");
 const { analyzeWithLLM, LLM_FALLBACK } = require("./analyzeWithLLM");
+const { generateOutreach } = require("./generateOutreach");
 const { scoreBusiness, sortResults } = require("./score");
 const { pushToSheets } = require("./pushToSheets");
 
@@ -89,6 +90,13 @@ async function main() {
       scrapeError: scrape.error, // ✅ IMPORTANT FIX
     });
 
+    const { outreach } = await generateOutreach({
+      name: b.name,
+      missing_features: llm.missing_features,
+      review_count: b.review_count,
+      rating: b.rating,
+    });
+
     pipeline.push({
       business: b,
       websiteUrl: scrape.websiteUrl,
@@ -101,6 +109,7 @@ async function main() {
       },
       llm,
       scores,
+      outreach,
     });
 
     await sleep(Number(process.env.REQUEST_PAUSE_MS) || 400);
@@ -130,6 +139,7 @@ async function main() {
       scores: r.scores,
       llm: r.llm,
       scrape_error: r.scrapeError,
+      outreach: r.outreach,
     })),
   };
 

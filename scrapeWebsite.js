@@ -1,15 +1,19 @@
 const { chromium } = require("playwright");
 
 async function scrapeWebsite(url) {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--ignore-certificate-errors"],
+  });
   const page = await browser.newPage();
 
   try {
     await page.goto(url, {
-      timeout: 30000,
-      waitUntil: "load",
+      timeout: 2000,
+      waitUntil: "domcontentloaded",
     });
 
+    await page.waitForTimeout(2000); // let page settle
     const html = (await page.content()).toLowerCase();
 
     const hasPhone =
