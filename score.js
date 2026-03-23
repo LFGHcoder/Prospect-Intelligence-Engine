@@ -50,7 +50,7 @@ function scoreBusiness(input) {
    : 0;
 
  /** Final priority score */
- const priority = pain * 4 + expansion * 2 + fit * 3;
+ const priority = pain * 5 + expansion * 3 + fit * 2;
 
  return {
    pain,

@@ -1,42 +1,56 @@
-const axios = require("axios");
-const cheerio = require("cheerio");
-const https = require("https");
+const { chromium } = require("playwright");
 
 async function scrapeWebsite(url) {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+
   try {
-    const { data } = await axios.get(url, {
-      timeout: 8000,
-      httpsAgent: new https.Agent({ rejectUnauthorized: false }),
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-      },
+    await page.goto(url, {
+      timeout: 30000,
+      waitUntil: "load",
     });
 
-    const $ = cheerio.load(data.toLowerCase());
-    const html = $.html();
+    const html = (await page.content()).toLowerCase();
+
+    const hasPhone =
+      /\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/.test(html) ||
+      html.includes("tel:") ||
+      html.includes("call") ||
+      html.includes("phone");
+
+    const hasForm =
+      html.includes("<form") ||
+      html.includes("contact") ||
+      html.includes("get a quote") ||
+      html.includes("request service") ||
+      html.includes("submit");
+
+    const hasChat =
+      html.includes("intercom") ||
+      html.includes("drift") ||
+      html.includes("tawk") ||
+      html.includes("chat");
+
+    const hasBooking =
+      html.includes("book") ||
+      html.includes("schedule") ||
+      html.includes("appointment") ||
+      html.includes("reserve");
+
+    await browser.close();
 
     return {
       websiteUrl: url,
       scraped: true,
       error: null,
-      hasForm: html.includes("<form")||
-      html.includes("contact") ||
-      html.includes("get a quote"),
-      hasChat:
-        html.includes("intercom") ||
-        html.includes("drift") ||
-        html.includes("tawk"),
-      hasBooking:
-        html.includes("book") ||
-        html.includes("schedule") ||
-        html.includes("appointment"),
-      hasPhone: 
-      /\d{3}[-.\s]?\d{3}/.test(html) ||
-      html.includes("call") ||
-      html.includes("tel:"),
+      hasForm,
+      hasChat,
+      hasBooking,
+      hasPhone,
     };
   } catch (e) {
+    await browser.close();
+
     return {
       websiteUrl: url,
       scraped: false,
@@ -49,4 +63,4 @@ async function scrapeWebsite(url) {
   }
 }
 
-module.exports = { scrapeWebsite };
+module.exports = scrapeWebsite;

@@ -2,7 +2,7 @@ require("dotenv").config();
 
 // const { fetchBusinesses } = require("./fetchBusinesses");
 const { getMockBusinesses } = require("./mockBusinesses");
-const { scrapeWebsite } = require("./scrapeWebsite");
+const  scrapeWebsite = require("./scrapeWebsite");
 const { analyzeWithLLM, LLM_FALLBACK } = require("./analyzeWithLLM");
 const { scoreBusiness, sortResults } = require("./score");
 const { pushToSheets } = require("./pushToSheets");
