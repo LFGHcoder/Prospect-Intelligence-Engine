@@ -20,7 +20,9 @@ async function scrapeWebsite(url) {
       websiteUrl: url,
       scraped: true,
       error: null,
-      hasForm: html.includes("<form"),
+      hasForm: html.includes("<form")||
+      html.includes("contact") ||
+      html.includes("get a quote"),
       hasChat:
         html.includes("intercom") ||
         html.includes("drift") ||
@@ -29,7 +31,10 @@ async function scrapeWebsite(url) {
         html.includes("book") ||
         html.includes("schedule") ||
         html.includes("appointment"),
-      hasPhone: /\d{3}[-.\s]?\d{3}/.test(html),
+      hasPhone: 
+      /\d{3}[-.\s]?\d{3}/.test(html) ||
+      html.includes("call") ||
+      html.includes("tel:"),
     };
   } catch (e) {
     return {

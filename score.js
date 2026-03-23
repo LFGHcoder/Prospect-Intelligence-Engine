@@ -28,7 +28,14 @@ function scoreBusiness(input) {
  if (!input.hasBooking) pain += 1;
 
  // ✅ Penalize failed scrapes (IMPORTANT)
- if (input.scrapeError) pain += 2;
+ if (input.scrapeError) {
+  return {
+    pain: 0,
+    fit: 0,
+    expansion: 0,
+    priority: -1 // pushes to bottom
+  };
+}
 
  /** Category match + reachable business + social proof */
  let fit = 0;
