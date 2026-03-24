@@ -1,19 +1,23 @@
 const { chromium } = require("playwright");
 
 async function scrapeWebsite(url) {
-  const browser = await chromium.launch({
-    headless: true,
-    args: ["--ignore-certificate-errors"],
+  const browser = await chromium.launch({ headless: true });
+
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: true, // ✅ FIX SSL errors
   });
-  const page = await browser.newPage();
+
+  const page = await context.newPage();
 
   try {
     await page.goto(url, {
-      timeout: 2000,
-      waitUntil: "domcontentloaded",
+      timeout: 20000,
+      waitUntil: "networkidle", // ✅ WAIT PROPERLY
     });
 
-    await page.waitForTimeout(2000); // let page settle
+    // small delay for dynamic content
+    await page.waitForTimeout(1500);
+
     const html = (await page.content()).toLowerCase();
 
     const hasPhone =
@@ -67,4 +71,4 @@ async function scrapeWebsite(url) {
   }
 }
 
-module.exports = scrapeWebsite;
+module.exports = { scrapeWebsite };

@@ -2,7 +2,7 @@ require("dotenv").config();
 
 // const { fetchBusinesses } = require("./fetchBusinesses");
 const { getMockBusinesses } = require("./mockBusinesses");
-const  scrapeWebsite = require("./scrapeWebsite");
+const { scrapeWebsite } = require("./scrapeWebsite");
 const { analyzeWithLLM, LLM_FALLBACK } = require("./analyzeWithLLM");
 const { generateOutreach } = require("./generateOutreach");
 const { scoreBusiness, sortResults } = require("./score");
@@ -45,7 +45,7 @@ async function main() {
       scrape.error = e.message || "scrape_exception";
     }
 
-    // ✅ deterministic missing features
+    // deterministic missing features
     const missing_features = [
       !scrape.hasForm && "contact form",
       !scrape.hasChat && "live chat",
@@ -73,7 +73,7 @@ async function main() {
       llm = { ...LLM_FALLBACK };
     }
 
-    // ✅ override bad Gemini output
+    // fallback if LLM fails
     if (!llm.missing_features || llm.missing_features.length === 0) {
       llm.missing_features = missing_features;
     }
@@ -87,14 +87,14 @@ async function main() {
       hasBooking: scrape.hasBooking,
       hasPhone: scrape.hasPhone,
       missing_features: llm.missing_features,
-      scrapeError: scrape.error, // ✅ IMPORTANT FIX
+      scrapeError: scrape.error,
     });
 
     const { outreach } = await generateOutreach({
       name: b.name,
-      missing_features: llm.missing_features,
-      review_count: b.review_count,
-      rating: b.rating,
+      llm: {
+        missing_features: llm.missing_features || [],
+      },
     });
 
     pipeline.push({
@@ -117,6 +117,11 @@ async function main() {
 
   const sorted = sortResults(pipeline);
 
+  // only good leads
+  const topProspects = sorted
+    .filter((r) => r.scores.priority > 10)
+    .slice(0, 3);
+
   let sheetsMeta = null;
   try {
     sheetsMeta = await pushToSheets(sorted);
@@ -126,29 +131,41 @@ async function main() {
 
   const output = {
     generated_at: new Date().toISOString(),
-    count: sorted.length,
+    count: topProspects.length,
     google_sheets: sheetsMeta,
-    results: sorted.map((r) => ({
-      name: r.business.name,
-      yelp_url: r.business.url,
-      website_url: r.websiteUrl,
-      phone: r.business.phone,
-      review_count: r.business.review_count,
-      rating: r.business.rating,
-      signals: r.signals,
-      scores: r.scores,
-      llm: r.llm,
-      scrape_error: r.scrapeError,
-      outreach: r.outreach,
-    })),
+
+    results: topProspects.map((r) => {
+      let label = "LOW";
+      if (r.scores.priority >= 20) label = "HOT";
+      else if (r.scores.priority >= 12) label = "WARM";
+
+      return {
+        name: r.business.name,
+        yelp_url: r.business.url,
+        website_url: r.websiteUrl,
+        phone: r.business.phone,
+        review_count: r.business.review_count,
+        rating: r.business.rating,
+
+        // ✅ NEW: clean product-style fields
+        lead_label: label,
+        status: r.scrapeError ? "failed" : "scraped",
+
+        signals: r.signals,
+        scores: r.scores,
+        llm: r.llm,
+
+        outreach: r.outreach,
+      };
+    }),
   };
 
-  process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+  console.log(JSON.stringify(output, null, 2));
 }
 
 main().catch((err) => {
-  process.stderr.write(
-    `${JSON.stringify({ error: err.message || String(err) }, null, 2)}\n`
+  console.error(
+    JSON.stringify({ error: err.message || String(err) }, null, 2)
   );
   process.exitCode = 1;
 });
