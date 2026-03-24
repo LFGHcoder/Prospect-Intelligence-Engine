@@ -1,5 +1,8 @@
 require("dotenv").config();
 
+const fs = require("fs");
+const { Parser } = require("json2csv");
+
 // const { fetchBusinesses } = require("./fetchBusinesses");
 const { getMockBusinesses } = require("./mockBusinesses");
 const { scrapeWebsite } = require("./scrapeWebsite");
@@ -90,10 +93,13 @@ async function main() {
       scrapeError: scrape.error,
     });
 
+    // safer outreach (avoid false claims if scrape failed)
     const { outreach } = await generateOutreach({
       name: b.name,
       llm: {
-        missing_features: llm.missing_features || [],
+        missing_features: scrape.error
+          ? []
+          : llm.missing_features || [],
       },
     });
 
@@ -117,16 +123,18 @@ async function main() {
 
   const sorted = sortResults(pipeline);
 
-  // only good leads
+  // only strong leads
   const topProspects = sorted
     .filter((r) => r.scores.priority > 10)
     .slice(0, 3);
 
-  let sheetsMeta = null;
+  // skip noisy Google Sheets error
+  let sheetsMeta = "not_configured";
   try {
-    sheetsMeta = await pushToSheets(sorted);
-  } catch (e) {
-    sheetsMeta = { error: e.message || String(e) };
+    await pushToSheets(sorted);
+    sheetsMeta = "connected";
+  } catch {
+    sheetsMeta = "not_configured";
   }
 
   const output = {
@@ -139,6 +147,15 @@ async function main() {
       if (r.scores.priority >= 20) label = "HOT";
       else if (r.scores.priority >= 12) label = "WARM";
 
+      const status = r.scrapeError
+        ? "partial"
+        : r.signals.hasForm ||
+          r.signals.hasChat ||
+          r.signals.hasBooking ||
+          r.signals.hasPhone
+        ? "verified"
+        : "low_confidence";
+
       return {
         name: r.business.name,
         yelp_url: r.business.url,
@@ -147,9 +164,15 @@ async function main() {
         review_count: r.business.review_count,
         rating: r.business.rating,
 
-        // ✅ NEW: clean product-style fields
         lead_label: label,
-        status: r.scrapeError ? "failed" : "scraped",
+        priority_tier:
+          label === "HOT"
+            ? "High conversion potential"
+            : label === "WARM"
+            ? "Moderate opportunity"
+            : "Low priority",
+
+        status,
 
         signals: r.signals,
         scores: r.scores,
@@ -160,7 +183,27 @@ async function main() {
     }),
   };
 
-  console.log(JSON.stringify(output, null, 2));
+  // save JSON
+  fs.writeFileSync("output.json", JSON.stringify(output, null, 2));
+
+  // generate CSV (ranked)
+  const flatResults = output.results.map((r, index) => ({
+    rank: index + 1,
+    name: r.name,
+    priority: r.scores.priority,
+    lead_label: r.lead_label,
+    priority_tier: r.priority_tier,
+    status: r.status,
+    missing_features: r.llm.missing_features.join(", "),
+    outreach: r.outreach,
+  }));
+
+  const parser = new Parser();
+  const csv = parser.parse(flatResults);
+
+  fs.writeFileSync("leads.csv", csv);
+
+  console.log("✅ output.json + leads.csv generated");
 }
 
 main().catch((err) => {
